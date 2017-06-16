@@ -108,5 +108,9 @@ namespace NFe.Classes.Servicos.DistribuicaoDFe
         /// A08 - Grupo para consultar um DF-e a partir de um NSU específico
         /// </summary>
         public consNSU consNSU { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        public consChNFe consChNFe { get; set; }
     }
 }

@@ -891,6 +891,111 @@ namespace NFe.Servicos
             #endregion
         }
 
+        public RetornoNfeDistDFeInt NfeDistDFeConsChave(string ufAutor, string documento, string chave)
+        {
+            var versaoServico = ServicoNFe.NFeDistribuicaoDFe.VersaoServicoParaString(_cFgServico.VersaoNFeDistribuicaoDFe);
+
+            #region Cria o objeto wdsl para consulta
+
+            var ws = CriarServico(ServicoNFe.NFeDistribuicaoDFe);
+
+            ws.nfeCabecMsg = new nfeCabecMsg
+            {
+                cUF = _cFgServico.cUF,
+                versaoDados = versaoServico
+            };
+
+            #endregion
+
+            #region Cria o objeto distDFeInt
+
+            var pedDistDFeInt = new distDFeInt
+            {
+                versao = "1.01",
+                tpAmb = _cFgServico.tpAmb,
+                cUFAutor = _cFgServico.cUF,
+                consChNFe = new consChNFe { chNFe = chave }
+            };
+
+            if (documento.Length == 11)
+                pedDistDFeInt.CPF = documento;
+            if (documento.Length > 11)
+                pedDistDFeInt.CNPJ = documento;
+
+            #endregion
+
+            #region Valida, Envia os dados e obtém a resposta
+
+            var xmlConsulta = pedDistDFeInt.ObterXmlString();
+            var dadosConsulta = new XmlDocument();
+            dadosConsulta.LoadXml(xmlConsulta);
+            SalvarArquivoXml(DateTime.Now.ParaDataHoraString() + "-ped-DistDFeInt.xml", xmlConsulta);
+
+            XmlNode retorno;
+            try
+            {
+                retorno = ws.Execute(dadosConsulta);
+            }
+            catch (WebException ex)
+            {
+                throw FabricaComunicacaoException.ObterException(ServicoNFe.NFeDistribuicaoDFe, ex);
+            }
+
+            var retornoXmlString = retorno.OuterXml;
+            var retConsulta = new retDistDFeInt().CarregarDeXmlString(retornoXmlString);
+
+            SalvarArquivoXml(DateTime.Now.ParaDataHoraString() + "-distDFeInt.xml", retornoXmlString);
+
+            #region Obtém um retDistDFeInt de cada evento e salva em arquivo
+
+            if (retConsulta.loteDistDFeInt != null)
+            {
+                for (int i = 0; i < retConsulta.loteDistDFeInt.Length; i++)
+                {
+
+                    string conteudo = Compressao.Unzip(retConsulta.loteDistDFeInt[i].XmlNfe);
+                    string chNFe = string.Empty;
+
+                    if (conteudo.StartsWith("<resNFe"))
+                    {
+                        var retConteudo =
+                            FuncoesXml.XmlStringParaClasse<Classes.Servicos.DistribuicaoDFe.Schemas.resNFe>(conteudo);
+                        chNFe = retConteudo.chNFe;
+                    }
+                    else if (conteudo.StartsWith("<procEventoNFe"))
+                    {
+                        var procEventoNFeConteudo =
+                            FuncoesXml.XmlStringParaClasse<Classes.Servicos.DistribuicaoDFe.Schemas.procEventoNFe>(
+                                conteudo);
+                        chNFe = procEventoNFeConteudo.retEvento.infEvento.chNFe;
+                    }
+                    else if (conteudo.StartsWith("<resEvento"))
+                    {
+                        var resEventoConteudo =
+                            FuncoesXml.XmlStringParaClasse<Classes.Servicos.DistribuicaoDFe.Schemas.resEvento>(
+                                conteudo);
+                        chNFe = resEventoConteudo.chNFe;
+                    }
+
+                    string[] schema = retConsulta.loteDistDFeInt[i].schema.Split('_');
+
+                    if (chNFe == string.Empty)
+                    {
+                        chNFe = DateTime.Now.ParaDataHoraString() + "_SEMCHAVE_";
+                    }
+
+                    SalvarArquivoXml(chNFe + "_" + schema[0] + ".xml", conteudo);
+                }
+            }
+
+            #endregion
+
+            return new RetornoNfeDistDFeInt(pedDistDFeInt.ObterXmlString(), retConsulta.ObterXmlString(),
+                retornoXmlString, retConsulta);
+
+            #endregion
+        }
+
         #region Recepção
 
         /// <summary>
